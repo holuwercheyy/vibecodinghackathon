@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <meta name="sourceMap" content="no">
+  <title>QuickTrack - Income & Expense Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+    body {
+      background-color: #f9fafb;
+      color: #111827;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+      margin-bottom: 1.5rem;
+    }
+    .flex {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .input-group {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+    }
+    button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover {
+      background-color: #2563eb;
+    }
+    .transactions {
+      margin-top: 2rem;
+    }
+    .transaction-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+  </style>
+
+  <!-- Firebase (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>QuickTrack</h1>
+
+    <!-- Totals Display -->
+    <div class="card">
+      <div class="flex">
+        <div><strong>Total Income:</strong> $<span id="incomeTotal">0</span></div>
+        <div><strong>Total Expenses:</strong> $<span id="expenseTotal">0</span></div>
+        <div><strong>Profit:</strong> $<span id="profit">0</span></div>
+      </div>
+    </div>
+
+    <!-- Add Transaction Form -->
+    <div class="card">
+      <h2>Add Transaction</h2>
+      <div class="input-group">
+        <label for="type">Type</label>
+        <select id="type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label for="amount">Amount ($)</label>
+        <input type="number" id="amount" />
+      </div>
+      <div class="input-group">
+        <label for="category">Category</label>
+        <input type="text" id="category" />
+      </div>
+      <div class="input-group">
+        <label for="description">Description</label>
+        <textarea id="description"></textarea>
+      </div>
+      <div class="input-group">
+        <label>Voice Input</label>
+        <button type="button" onclick="startVoiceInput()">Use Voice</button>
+      </div>
+      <div class="input-group">
+        <label>Photo Input</label>
+        <input type="file" accept="image/*" onchange="handlePhotoUpload(event)" />
+      </div>
+      <button onclick="addTransaction()">Add</button>
+    </div>
+
+    <!-- Transactions List -->
+    <div class="card transactions">
+      <h2>Transactions</h2>
+      <div id="transactionList"></div>
+    </div>
+  </div>
+
+  <script>
+    // Replace with your actual Firebase project config
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let transactions = [];
+
+    function addTransaction() {
+      const type = document.getElementById('type').value;
+      const amount = parseFloat(document.getElementById('amount').value);
+      const category = document.getElementById('category').value;
+      const description = document.getElementById('description').value;
+
+      if (!amount || amount <= 0) {
+        alert('Enter a valid amount');
+        return;
+      }
+
+      const transaction = {
+        type,
+        amount,
+        category,
+        description,
+        date: new Date().toLocaleDateString()
+      };
+
+      transactions.push(transaction);
+      db.collection('transactions').add(transaction);
+      updateUI();
+
+      // Clear form
+      document.getElementById('amount').value = '';
+      document.getElementById('category').value = '';
+      document.getElementById('description').value = '';
+    }
+
+    function updateUI() {
+      const incomeTotal = transactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const expenseTotal = transactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      document.getElementById('incomeTotal').innerText = incomeTotal;
+      document.getElementById('expenseTotal').innerText = expenseTotal;
+      document.getElementById('profit').innerText = incomeTotal - expenseTotal;
+
+      const list = document.getElementById('transactionList');
+      list.innerHTML = '';
+      transactions.slice().reverse().forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'transaction-item';
+        item.innerHTML = `<span>${t.type === 'income' ? '+' : '-'}$${t.amount} (${t.category})</span><span>${t.date}</span>`;
+        list.appendChild(item);
+      });
+    }
+
+    function startVoiceInput() {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = function (event) {
+        const transcript = event.results[0][0].transcript;
+        parseVoiceInput(transcript);
+      };
+
+      recognition.start();
+    }
+
+    function parseVoiceInput(text) {
+      const amountMatch = text.match(/\b(\d+\.?\d*)\b/);
+      if (amountMatch) {
+        document.getElementById('amount').value = amountMatch[1];
+        document.getElementById('description').value = text;
+        document.getElementById('type').value = text.toLowerCase().includes("sold") ? "income" : "expense";
+      }
+    }
+
+    function handlePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        alert('Photo uploaded. OCR feature to be implemented.');
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
